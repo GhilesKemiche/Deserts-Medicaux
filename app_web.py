@@ -5,6 +5,7 @@ from scipy.optimize import root
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import plotly.express as px
+import streamlit as st
 import warnings
 
 def Prob_eval_SFCA2(d):
@@ -452,10 +453,6 @@ def visualiser_deserts_medicaux_carte(is_desert, sf):
 
     st.plotly_chart(fig)
 
-
-import streamlit as st
-
-# Importer les fonctions nécessaires ici
 
 def main():
     # Titre de l'application
