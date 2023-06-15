@@ -5,8 +5,12 @@ from scipy.optimize import root
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import plotly.express as px
+import requests
 import streamlit as st
+from streamlit_lottie import st_lottie
+from PIL import Image
 import warnings
+
 
 def Prob_eval_SFCA2(d):
     """
@@ -28,6 +32,7 @@ def Prob_eval_SFCA2(d):
     Prob = W /sum_W
     
     return Prob
+
 
 def Prob_eval_SFCA3(d, S):
     """
@@ -112,6 +117,7 @@ def F(R, Prob, W, P, S):
     R_new = calc_Rj(P, Prob, S)
     return R_new, Prob_new
 
+
 def Point_fixe_SFCA(W, S, P, maxiter = 10000):
     """
     Implémentation de l'algorithme pour calculer le vecteur R et la matrice Prob avec la méthode du point fixe.
@@ -192,6 +198,8 @@ def find_fixed_point_2(W, P, S, tol=1e-10, max_iter=1000):
     else:
         print("La méthode n'a pas convergé.")
 
+
+
 def deserts_medicaux_FCA(d, communes, S, P, model="SFCA3", seuil  = 0.1, error = False):
     """
     Détermine si chaque commune est un désert médical ou non en utilisant l'un des trois modèles.
@@ -244,10 +252,16 @@ def deserts_medicaux_FCA(d, communes, S, P, model="SFCA3", seuil  = 0.1, error =
 
 
 #! pip install openpyxl
-distancier = pd.read_csv("distancier_sur_dep.csv", sep=";")
-population = pd.read_excel("Medecins.xlsx")
-medecins = pd.read_excel("Population.xlsx")
-sf = gpd.read_file('departements-version-simplifiee.geojson')
+@st.cache_data
+def load():
+    '''
+    Fonction pour importer nos données
+    '''
+    distancier = pd.read_csv("distancier_sur_dep.csv", sep=";")
+    population = pd.read_excel("Medecins.xlsx")
+    medecins = pd.read_excel("Population.xlsx")
+    sf = gpd.read_file('departements-version-simplifiee.geojson')
+    return distancier, population, medecins, sf
 
 
 def negdist_clean(distancier):
@@ -278,6 +292,7 @@ def negdist_clean(distancier):
     distancier = distancier[~distancier['idSrc'].isin(idsrc_a_supprimer) & ~distancier['idDst'].isin(iddst_a_supprimer)].dropna()
     return distancier
 
+
 def clean_distancier(distancier):
     """
     Nettoie le DataFrame distancier en effectuant les opérations suivantes :
@@ -304,6 +319,7 @@ def clean_distancier(distancier):
     distancier['idDst'] = pd.to_numeric(distancier['idDst'], errors='coerce')
     distancier = negdist_clean(distancier)
     return distancier
+
 
 def clean_population(population):
     """
@@ -333,6 +349,7 @@ def clean_population(population):
     population["population"] = population["population"].astype(float)
 
     return population
+
 
 def clean_medecins(medecins, spe = "Médecin généraliste") :
     """
@@ -368,6 +385,7 @@ def clean_medecins(medecins, spe = "Médecin généraliste") :
 
     return medecins
 
+@st.cache_data
 def deserts_medicaux(distancier, population, medecins, clean = False, spe = "Médecin généraliste", scale = "DEP", model = "SFCA2") : 
 
     """
@@ -428,6 +446,7 @@ def deserts_medicaux(distancier, population, medecins, clean = False, spe = "Mé
 
     return is_desert
 
+
 def visualiser_deserts_medicaux_carte(is_desert, sf):
     """
     Affiche une carte représentant les déserts médicaux à partir du tableau is_desert et du fichier shape sf.
@@ -454,25 +473,65 @@ def visualiser_deserts_medicaux_carte(is_desert, sf):
     st.plotly_chart(fig)
 
 
-def main():
-    # Titre de l'application
-    st.title("Application de déserts médicaux")
 
-    # Sélection des configurations
-    spe = st.selectbox("Spécialité :", ["Médecin généraliste", "Spécialiste en cardiologie", "Spécialiste en dermatologie vénéréologie", "Infirmier"])  # Ajoutez les autres spécialités disponibles
-    scale = st.selectbox("Échelle :", ["DEP", "Région", "Commune"])  # Ajoutez les autres échelles disponibles
-    model = st.selectbox("Modèle :", ["SFCA2", "SFCA3", "point fixe"])  # Ajoutez les autres modèles disponibles
+def load_lottieurl(url):
+    r = requests.get(url)
+    if r.status_code != 200:
+        return None
+    return r.json()
 
-    # Bouton pour exécuter l'analyse
-    if st.button("Exécuter"):
-        # Appeler les fonctions correspondantes avec les configurations sélectionnées
-        st.subheader("Résultats des déserts médicaux sur la carte de la France :")
-        is_desert = deserts_medicaux(distancier, population, medecins, model=model, spe=spe, clean=False, scale=scale)
-        visualiser_deserts_medicaux_carte(is_desert, sf)
-        st.subheader("Résultats des déserts médicaux :")
-        st.dataframe(is_desert)
 
-# Appel de la fonction principale
-if __name__ == "__main__":
-    main()
+# Use local CSS
+def local_css(file_name):
+    with open(file_name) as f:
+        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+
+
+local_css("style/style.css")
+
+# ---- LOAD ASSETS ----
+lottie_coding = load_lottieurl("https://assets4.lottiefiles.com/packages/lf20_nw19osms.json")
+st.title("Application de déserts médicaux")
+left_column, right_column = st.columns(2)
+with left_column:
+    st.markdown("""
+Bienvenue dans cette application d'analyse des déserts médicaux en France. Cette application utilise des modèles d'évaluation pour identifier les zones où l'accès aux soins médicaux est limité en raison de la pénurie de médecins.
+
+Les déserts médicaux sont une préoccupation croissante dans de nombreuses régions de la France, où la disponibilité des services de santé peut être insuffisante pour répondre aux besoins de la population. Cette application vous permettra d'évaluer les déserts médicaux en utilisant différentes approches basées sur les données de population, les distances géographiques et le nombre de médecins disponibles.
+""")
+with right_column:
+    st_lottie(lottie_coding, height=300, key="coding")
+
+st.markdown(""" 
+## Paramètres
+
+Sur le panneau latéral, vous pouvez ajuster les paramètres de l'application. Vous pouvez choisir entre différents modèles d'évaluation, tels que le modèle SFCA2, le modèle SFCA3 ou un modèle de point fixe. Vous pouvez également définir un seuil de décision pour déterminer les zones considérées comme des déserts médicaux.
+
+## Instructions
+
+1. Sélectionnez les paramètres souhaités sur le panneau latéral.
+2. Cliquez sur le bouton "Calculer" pour obtenir les résultats.
+3. Les résultats s'afficheront sous forme d'un tableau et d'une carte montrant les déserts médicaux identifiés.
+
+Nous espérons que cette application vous fournira des informations utiles sur les déserts médicaux en France et contribuera à sensibiliser davantage à ce problème crucial.""")
+
+
+distancier, population, medecins, sf = load()
+# Sélection des configurations
+spe = st.sidebar.selectbox("Spécialité :", list(medecins.iloc[3])[4:])  # Ajoutez les autres spécialités disponibles
+scale = st.sidebar.selectbox("Échelle :", ["DEP", "Région", "Commune"])  # Ajoutez les autres échelles disponibles
+model = st.sidebar.selectbox("Modèle :", ["SFCA2", "SFCA3", "point fixe"])  # Ajoutez les autres modèles disponibles
+
+# Bouton pour exécuter l'analyse
+if st.sidebar.button("Exécuter"):
+    # Appeler les fonctions correspondantes avec les configurations sélectionnées
+    st.subheader(f"Carte des déserts médicaux pour {spe} :")
+    is_desert = deserts_medicaux(distancier, population, medecins, model=model, spe=spe, clean=False, scale=scale)
+    visualiser_deserts_medicaux_carte(is_desert, sf)
+    st.markdown(""" 
+    ## Résultats des déserts médicaux
+    On énumère les deserts medicaux suivants :
+    """)
+    st.dataframe(is_desert[is_desert["desert_medical"]][is_desert.columns[:3]])
+
 
