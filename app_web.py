@@ -495,25 +495,13 @@ st.title("Application de déserts médicaux")
 left_column, right_column = st.columns(2)
 with left_column:
     st.markdown("""
-Bienvenue dans cette application d'analyse des déserts médicaux en France. Cette application utilise des modèles d'évaluation pour identifier les zones où l'accès aux soins médicaux est limité en raison de la pénurie de médecins.
+Cette application utilise des modèles d'évaluation pour identifier les zones où l'accès aux soins médicaux est limité en raison de la pénurie de médecins.
 
-Les déserts médicaux sont une préoccupation croissante dans de nombreuses régions de la France, où la disponibilité des services de santé peut être insuffisante pour répondre aux besoins de la population. Cette application vous permettra d'évaluer les déserts médicaux en utilisant différentes approches basées sur les données de population, les distances géographiques et le nombre de médecins disponibles.
+Cette application nous permettra d'évaluer les déserts médicaux en utilisant différentes approches basées sur les données de population, les distances géographiques et le nombre de médecins disponibles.
 """)
 with right_column:
     st_lottie(lottie_coding, height=300, key="coding")
 
-st.markdown(""" 
-## Paramètres
-
-Sur le panneau latéral, vous pouvez ajuster les paramètres de l'application. Vous pouvez choisir entre différents modèles d'évaluation, tels que le modèle SFCA2, le modèle SFCA3 ou un modèle de point fixe. Vous pouvez également définir un seuil de décision pour déterminer les zones considérées comme des déserts médicaux.
-
-## Instructions
-
-1. Sélectionnez les paramètres souhaités sur le panneau latéral.
-2. Cliquez sur le bouton "Calculer" pour obtenir les résultats.
-3. Les résultats s'afficheront sous forme d'un tableau et d'une carte montrant les déserts médicaux identifiés.
-
-Nous espérons que cette application vous fournira des informations utiles sur les déserts médicaux en France et contribuera à sensibiliser davantage à ce problème crucial.""")
 
 
 distancier, population, medecins, sf = load()
@@ -528,10 +516,6 @@ if st.sidebar.button("Exécuter"):
     st.subheader(f"Carte des déserts médicaux pour {spe} :")
     is_desert = deserts_medicaux(distancier, population, medecins, model=model, spe=spe, clean=False, scale=scale)
     visualiser_deserts_medicaux_carte(is_desert, sf)
-    st.markdown(""" 
-    ## Résultats des déserts médicaux
-    On énumère les deserts medicaux suivants :
-    """)
-    st.dataframe(is_desert[is_desert["desert_medical"]][is_desert.columns[:3]])
+   
 
 
