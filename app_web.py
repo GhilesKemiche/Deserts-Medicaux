@@ -9,6 +9,8 @@ import requests
 import streamlit as st
 from streamlit_lottie import st_lottie
 from PIL import Image
+from simulation import *
+from pandas.api.types import is_numeric_dtype
 import warnings
 
 
@@ -251,17 +253,25 @@ def deserts_medicaux_FCA(d, communes, S, P, model="SFCA3", seuil  = 0.1, error =
         return df
 
 
+
+
 #! pip install openpyxl
 @st.cache_data
 def load():
     '''
     Fonction pour importer nos données
     '''
-    distancier = pd.read_csv("distancier_sur_dep.csv", sep=";")
+    #! pip install openpyxl
+    distancier_reg = pd.read_csv("distancier_sur_reg.csv", sep=";")
+    distancier_dep = pd.read_csv("distancier_sur_dep.csv", sep=";")
+    distancier_com = pd.read_csv("distancier_sur_com.csv", sep=";")
     population = pd.read_excel("Medecins.xlsx")
     medecins = pd.read_excel("Population.xlsx")
-    sf = gpd.read_file('departements-version-simplifiee.geojson')
-    return distancier, population, medecins, sf
+    sf_dep = gpd.read_file('departements-version-simplifiee.geojson')
+    sf_com = gpd.read_file('communes.geojson')
+    sf_reg = gpd.read_file('regions-version-simplifiee.geojson')
+
+    return distancier_reg, distancier_dep, distancier_com, population, medecins, sf_reg, sf_dep, sf_com
 
 
 def negdist_clean(distancier):
@@ -311,7 +321,8 @@ def clean_distancier(distancier):
     """
 
     distancier = distancier[["idSrc", "idDst", "distance"]]
-    distancier["distance"] = distancier["distance"].str.replace(',', '.').astype(float)
+    if not(is_numeric_dtype(distancier["distance"])) :
+        distancier["distance"] = distancier["distance"].str.replace(',', '.').astype(float)
     # remplacer les distances nulles par 1
     distancier.loc[distancier['distance'] == 0, 'distance'] = 1
     #le codgeo ou code departement doit etre sous format numerique
@@ -385,8 +396,38 @@ def clean_medecins(medecins, spe = "Médecin généraliste") :
 
     return medecins
 
+def replace_codgeo(code):
+    """
+    Remplace les valeurs de la colonne 'CODGEO' dans le DataFrame 'population' 
+    Cette fonction prend en argument un code géographique (int) et vérifie si le code divisé par 1000 est égal à 75 (ie code postale d'un arrondissement de Paris).
+    Si la condition est vraie, la fonction renvoie la valeur 75056 (le codgeo de Paris), sinon elle renvoie le code d'origine.
+
+    Args:
+        code (int): Le code géographique à remplacer.
+
+    Returns:
+        int: Le nouveau code géographique après remplacement selon la condition.
+
+    """
+    if int(code / 1000) == 75:
+        return 75056
+    return code
+
+def extract_simulation(simulation):
+    data = simulation[0]['true_value'][["i", "j", "code_patient", "code_doctor", "alpha", "psi"]]
+    population = data[[ "i", "code_patient", "alpha"]]
+    medecins = data[[ "j", "code_doctor", "psi"]]
+    population.drop_duplicates(inplace = True)
+    medecins.drop_duplicates(inplace = True)
+    medecins.rename(columns = {"code_doctor": "CODGEO", "psi" : "medecins"}, inplace = True)
+    population.rename(columns = {"code_patient": "CODGEO", "alpha" : "population"}, inplace = True)
+    medecins = medecins[["CODGEO", "medecins"]].groupby('CODGEO', as_index= False).sum()
+    population = population [["CODGEO", "population"]].groupby('CODGEO', as_index= False).sum()
+
+    return medecins, population
+
 @st.cache_data
-def deserts_medicaux(distancier, population, medecins, clean = False, spe = "Médecin généraliste", scale = "DEP", model = "SFCA2") : 
+def deserts_medicaux(distancier, population, medecins, clean = False, spe = "Médecin généraliste", scale = "DEP", model = "SFCA2", approche="Naive") : 
 
     """
     Calcule les déserts médicaux en utilisant les données du distancier, de la population et des médecins en fonction du model choisi.
@@ -399,6 +440,7 @@ def deserts_medicaux(distancier, population, medecins, clean = False, spe = "Mé
         spe (str): La spécialité de médecin à considérer lors du nettoyage des données. Par défaut, "Médecin généraliste".
         scale (str): L'échelle de regroupement des données (département, commune, etc.). Par défaut, "DEP".
         model (str): Le modèle à utiliser pour le calcul des déserts médicaux. Par défaut, "SFCA2".
+        approche (str) : l'approche utilisée pour la quantité de soins servie et demandée. Par default "Naive" qui utilise le nombre de medecins et de population
     
     Returns:
         pandas.dataframe: Un dataframe indiquant les déserts médicaux ou non avec son indicateur FCA pour chaque échelle spécifiée.
@@ -407,27 +449,61 @@ def deserts_medicaux(distancier, population, medecins, clean = False, spe = "Mé
     if not(clean) :
         distancier = clean_distancier(distancier)
         population = clean_population(population)
-        medecins = clean_medecins(medecins, spe = spe) 
-    
+        if approche == "Naive" :
+            medecins = clean_medecins(medecins, spe = spe) 
+        else :
+            #relier les codes departement, codes regions et codes communes (codgeo)
+            reg_dep_com = population[["REG", "DEP", "CODGEO", "LIBGEO"]]
+            simulation = temporal_simulation(nb_of_periods=1,
+                                    n_patients=600,
+                                    n_doctors=60,
+                                    z=1.1,
+                                    alpha_law_graph=(-1, 0),
+                                    psi_law_graph=(-1, 0),
+                                    alpha_law_cost=(-1, 0),
+                                    psi_law_cost=(-1, 0),
+                                    preconditioner = 'ichol',
+                                    beta_age_p_graph=0.01,
+                                    beta_age_d_graph=0.01,
+                                    beta_sex_p_graph=0.5,
+                                    beta_sex_d_graph=0.5,
+                                    beta_distance_graph=-0.5,
+                                    beta_age_p_cost=0.01,
+                                    beta_age_d_cost=0.01,
+                                    beta_sex_p_cost=0.5,
+                                    beta_sex_d_cost=0.5,
+                                    beta_distance_cost=0.5,
+                                    type_distance = scale)
+            medecins, population = extract_simulation(simulation)
+            medecins = medecins.merge(reg_dep_com, on="CODGEO", how='inner')
+            population = population.merge(reg_dep_com, on="CODGEO", how='inner')
+            print('okkkkkkkkkk!!!?')
+
+
+
+    # Remplacer les code postale de paris par un code 
+    population['CODGEO'] = population['CODGEO'].apply(replace_codgeo)
     ## Assembler la population et les médecins selon les départements
-    medecins_scale = medecins[medecins.columns[-2:]].groupby(scale).sum().reset_index()
-    population_scale = population[['population', scale]].groupby(scale).sum().reset_index()
+    medecins_scale = medecins.groupby(scale)['medecins'].sum().reset_index()
+    population_scale = population.groupby(scale)['population'].sum().reset_index()
 
     # Jointure entre df_medecins et df_population
     df_merge1 = medecins_scale.merge(population_scale, on=scale, how='inner')
 
     #relier chaque codgeo de chaque lieu à son numero de scales pour représenter ce scale
     scale_CODGEO = medecins.merge(distancier, left_on='CODGEO', right_on='idSrc', how='inner')[[scale,'CODGEO']].drop_duplicates()
+    if scale == "CODGEO" :
+        scale_CODGEO.columns=["CODGEO", "A"]
     codgeo_list = scale_CODGEO["CODGEO"]
     df_filtered = distancier[distancier['idSrc'].isin(codgeo_list)]
     df_final = df_filtered[df_filtered['idDst'].isin(codgeo_list)]
 
-    # On va remplacer les codgeo des communes chef lieux des scale(departement ou commune) par les numéro des scales respectifs 
+    # On va remplacer les codgeo des communes chef lieux des scale(departement ou communeou region) par les numéro des scales respectifs 
     # Remplacer les valeurs des colonnes 'idsrc' et 'iddist' par les numéros de scale correspondants
-    codgeo_scale_dict = scale_CODGEO.set_index('CODGEO')[scale].to_dict()
-
-    df_final['idSrc'] = df_final['idSrc'].map(codgeo_scale_dict)
-    df_final['idDst'] = df_final['idDst'].map(codgeo_scale_dict)
+    if not(scale == "CODGEO") : 
+        codgeo_scale_dict = scale_CODGEO.set_index('CODGEO')[scale].to_dict()
+        df_final['idSrc'] = df_final['idSrc'].map(codgeo_scale_dict)
+        df_final['idDst'] = df_final['idDst'].map(codgeo_scale_dict)
 
     # Créer notre matrice de distance 
     # De plus on remarque que cela est possible car la taille de notre dataframe doit etre un carré
@@ -442,9 +518,15 @@ def deserts_medicaux(distancier, population, medecins, clean = False, spe = "Mé
     S = S_P["medecins"].values
     P = S_P["population"].values
     # Appliquer notre modele
-    is_desert = deserts_medicaux_FCA(d, S_P["DEP"].values , S, P, model=model)
+    is_desert = deserts_medicaux_FCA(d, S_P[scale].values , S, P, model=model)
+
+    if scale == "CODGEO":
+        is_desert["CODGEO\DEP"] = (is_desert["CODGEO\DEP"].astype(int)).astype(str)
 
     return is_desert
+
+
+
 
 
 def visualiser_deserts_medicaux_carte(is_desert, sf):
@@ -473,7 +555,7 @@ def visualiser_deserts_medicaux_carte(is_desert, sf):
     st.plotly_chart(fig)
 
 
-
+@st.cache_data
 def load_lottieurl(url):
     r = requests.get(url)
     if r.status_code != 200:
@@ -498,24 +580,39 @@ with left_column:
 Cette application utilise des modèles d'évaluation pour identifier les zones où l'accès aux soins médicaux est limité en raison de la pénurie de médecins.
 
 Cette application nous permettra d'évaluer les déserts médicaux en utilisant différentes approches basées sur les données de population, les distances géographiques et le nombre de médecins disponibles.
+                
+Pour plus de détails sur les méthodes utilisées et les données analysées, vous pouvez consulter le résumé des méthodes et données.
 """)
+with open("deserts_medicaux.pdf", "rb") as f:
+    data = f.read()
+st.download_button(label="Télécharger le résumé des méthodes et données", data=data, file_name="deserts_medicaux.pdf", mime="application/pdf")
 with right_column:
     st_lottie(lottie_coding, height=300, key="coding")
 
 
 
-distancier, population, medecins, sf = load()
+distancier_reg, distancier_dep, distancier_com, population, medecins, sf_reg, sf_dep, sf_com = load()
 # Sélection des configurations
 spe = st.sidebar.selectbox("Spécialité :", list(medecins.iloc[3])[4:])  # Ajoutez les autres spécialités disponibles
-scale = st.sidebar.selectbox("Échelle :", ["DEP", "Région", "Commune"])  # Ajoutez les autres échelles disponibles
+scale = st.sidebar.selectbox("Échelle :", ["DEP", "REG", "CODGEO"])  # Ajoutez les autres échelles disponibles
 model = st.sidebar.selectbox("Modèle :", ["SFCA2", "SFCA3", "point fixe"])  # Ajoutez les autres modèles disponibles
+approche = st.sidebar.selectbox("Approche :", ["Naive", "Effets fixes"])  # Ajoutez les autres modèles disponibles
+
+if scale == "DEP":
+    distancier = distancier_dep
+    sf = sf_dep
+if scale == "REG":
+    distancier = distancier_reg
+    sf = sf_reg
+if scale =="CODGEO":
+    distancier = distancier_com
+    sf = sf_com
 
 # Bouton pour exécuter l'analyse
 if st.sidebar.button("Exécuter"):
     # Appeler les fonctions correspondantes avec les configurations sélectionnées
     st.subheader(f"Carte des déserts médicaux pour {spe} :")
-    is_desert = deserts_medicaux(distancier, population, medecins, model=model, spe=spe, clean=False, scale=scale)
+    is_desert = deserts_medicaux(distancier, population, medecins, model=model, spe=spe, clean=False, scale=scale, approche= approche)
     visualiser_deserts_medicaux_carte(is_desert, sf)
    
-
 
