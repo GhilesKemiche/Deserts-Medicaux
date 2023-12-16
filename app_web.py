@@ -9,7 +9,7 @@ import requests
 import streamlit as st
 from streamlit_lottie import st_lottie
 from PIL import Image
-from simulation import *
+from fixed_effects.simulation import *
 from pandas.api.types import is_numeric_dtype
 import warnings
 
@@ -262,14 +262,14 @@ def load():
     Fonction pour importer nos données
     '''
     #! pip install openpyxl
-    distancier_reg = pd.read_csv("distancier_sur_reg.csv", sep=";")
-    distancier_dep = pd.read_csv("distancier_sur_dep.csv", sep=";")
-    distancier_com = pd.read_csv("distancier_sur_com.csv", sep=";")
-    population = pd.read_excel("Medecins.xlsx")
-    medecins = pd.read_excel("Population.xlsx")
-    sf_dep = gpd.read_file('departements-version-simplifiee.geojson')
-    sf_com = gpd.read_file('communes.geojson')
-    sf_reg = gpd.read_file('regions-version-simplifiee.geojson')
+    distancier_reg = pd.read_csv("data/distancier_sur_reg.csv", sep=";")
+    distancier_dep = pd.read_csv("data/distancier_sur_dep.csv", sep=";")
+    distancier_com = pd.read_csv("data/distancier_sur_com.csv", sep=";")
+    population = pd.read_excel("data/Medecins.xlsx")
+    medecins = pd.read_excel("data/Population.xlsx")
+    sf_dep = gpd.read_file('data/departements-version-simplifiee.geojson')
+    sf_com = gpd.read_file('data/communes.geojson')
+    sf_reg = gpd.read_file('data/regions-version-simplifiee.geojson')
 
     return distancier_reg, distancier_dep, distancier_com, population, medecins, sf_reg, sf_dep, sf_com
 
@@ -583,9 +583,9 @@ Cette application nous permettra d'évaluer les déserts médicaux en utilisant 
                 
 Pour plus de détails sur les méthodes utilisées et les données analysées, vous pouvez consulter le résumé des méthodes et données.
 """)
-with open("deserts_medicaux.pdf", "rb") as f:
+with open("Rapport.pdf", "rb") as f:
     data = f.read()
-st.download_button(label="Télécharger le résumé des méthodes et données", data=data, file_name="deserts_medicaux.pdf", mime="application/pdf")
+st.download_button(label="Télécharger le résumé des méthodes et données", data=data, file_name="Rapport.pdf", mime="application/pdf")
 with right_column:
     st_lottie(lottie_coding, height=300, key="coding")
 
