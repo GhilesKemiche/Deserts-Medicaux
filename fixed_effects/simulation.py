@@ -129,7 +129,7 @@ def temporal_simulation(nb_of_periods,
     else:
 
         # Assign randomly a CODGEO, DEP, or REG to patients and doctors
-        dist_matrix = pd.read_csv(type_distance + '.csv')
+        dist_matrix = pd.read_csv('data/' + type_distance + '.csv')
         
         del dist_matrix[dist_matrix.columns[0]]
         dist_matrix.index = dist_matrix.columns

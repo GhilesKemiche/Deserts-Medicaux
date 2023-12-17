@@ -439,3 +439,14 @@
 2023-10-14 12:13:01,556 - fecontrolestimator - INFO - expected total time: 0 minutes
 2023-10-14 12:13:01,560 - fecontrolestimator - INFO - outputfile=None, so results not saved
 2023-10-14 12:13:01,563 - fecontrolestimator - INFO - ----- DONE WITH FE ESTIMATION -----
+2023-12-17 00:27:20,790 - fecontrolestimator - INFO - ----- STARTING FE ESTIMATION -----
+2023-12-17 00:27:20,791 - fecontrolestimator - INFO - preparing data
+2023-12-17 00:27:20,793 - fecontrolestimator - INFO - data firms=61 workers=600 observations=2527
+2023-12-17 00:27:20,795 - fecontrolestimator - INFO - data movers=589 stayers=11
+2023-12-17 00:27:20,819 - fecontrolestimator - INFO - preparing linear solver
+2023-12-17 00:27:20,884 - fecontrolestimator - INFO - total variance: 2.1896
+2023-12-17 00:27:20,884 - fecontrolestimator - INFO - estimating firm and worker effects
+2023-12-17 00:27:20,894 - fecontrolestimator - INFO - solver time: 0.0088 seconds
+2023-12-17 00:27:20,894 - fecontrolestimator - INFO - expected total time: 0 minutes
+2023-12-17 00:27:20,934 - fecontrolestimator - INFO - outputfile=None, so results not saved
+2023-12-17 00:27:20,934 - fecontrolestimator - INFO - ----- DONE WITH FE ESTIMATION -----
